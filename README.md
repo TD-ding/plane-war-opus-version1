@@ -9,24 +9,39 @@
 ## 技术栈
 
 - HTML5 Canvas
-- 原生 JavaScript（无第三方依赖）
+- 原生 JavaScript（无第三方运行时依赖）
+- Jest（单元测试）+ ESLint（代码检查）
+- Docker + nginx（可选容器部署）
 
 ## 目录结构
 
 ```
 plane-war-opus-version1/
-├── index.html      # 游戏主文件（含全部逻辑）
-└── README.md
+├── index.html               # 游戏主文件（渲染 + 交互）
+├── src/
+│   └── logic.js             # 纯逻辑模块（碰撞/关卡/速度/边界），可测试可复用
+├── tests/
+│   └── logic.test.js        # Jest 单元测试
+├── docs/
+│   └── deployment.md        # 部署与运行指南
+├── Dockerfile               # nginx 静态服务镜像（非 root）
+├── docker-compose.yml
+├── .env.example
+├── package.json
+└── .github/workflows/       # CI（lint+test）/ CD（docker build）
 ```
 
 ## 如何运行
 
-直接用浏览器打开 `index.html` 即可，或启动一个本地静态服务器：
+直接用浏览器打开 `index.html`，或启动本地静态服务器：
 
 ```bash
 python3 -m http.server 8000
 # 然后访问 http://localhost:8000
 ```
+
+也支持 Docker：`docker compose up --build`（默认 8080 端口）。
+完整部署、测试、CI 说明见 [docs/deployment.md](docs/deployment.md)。
 
 ## 操作说明
 
