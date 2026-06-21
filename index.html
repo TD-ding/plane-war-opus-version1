@@ -35,12 +35,59 @@ var state = {
   enemies: [],
   score: 0,
   gameOver: false,
+  paused: false,
+  started: false,
   keys: {}
 };
 
 // ===== 输入处理 =====
-document.addEventListener("keydown", function (e) { state.keys[e.key] = true; });
+document.addEventListener("keydown", function (e) {
+  state.keys[e.key] = true;
+  // 空格：开始 / 重新开始；P：暂停切换
+  if (e.key === " ") {
+    if (!state.started || state.gameOver) restart();
+  }
+  if (e.key === "p" || e.key === "P") {
+    if (state.started && !state.gameOver) state.paused = !state.paused;
+  }
+});
 document.addEventListener("keyup",   function (e) { state.keys[e.key] = false; });
+
+// 触屏：手指拖动控制飞机，未开始/结束时点击重新开始
+function pointerMove(clientX, clientY) {
+  var rect = canvas.getBoundingClientRect();
+  var p = state.player;
+  p.x = clientX - rect.left - p.w / 2;
+  p.y = clientY - rect.top - p.h / 2;
+}
+canvas.addEventListener("touchstart", function (e) {
+  e.preventDefault();
+  if (!state.started || state.gameOver) { restart(); return; }
+  var t = e.touches[0];
+  pointerMove(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener("touchmove", function (e) {
+  e.preventDefault();
+  if (state.started && !state.gameOver && !state.paused) {
+    var t = e.touches[0];
+    pointerMove(t.clientX, t.clientY);
+  }
+}, { passive: false });
+canvas.addEventListener("mousedown", function () {
+  if (!state.started || state.gameOver) restart();
+});
+
+// 重置全部状态，开始新的一局
+function restart() {
+  state.player.x = CONFIG.width / 2 - CONFIG.player.w / 2;
+  state.player.y = CONFIG.height - 80;
+  state.bullets = [];
+  state.enemies = [];
+  state.score = 0;
+  state.gameOver = false;
+  state.paused = false;
+  state.started = true;
+}
 
 // ===== 工具：矩形碰撞检测（AABB） =====
 function isColliding(a, b) {
@@ -50,7 +97,7 @@ function isColliding(a, b) {
 
 // ===== 生成器：定时创建子弹与敌机 =====
 function spawnBullet() {
-  if (state.gameOver) return;
+  if (!state.started || state.gameOver || state.paused) return;
   var p = state.player;
   state.bullets.push({
     x: p.x + p.w / 2 - CONFIG.bullet.w / 2, y: p.y,
@@ -58,7 +105,7 @@ function spawnBullet() {
   });
 }
 function spawnEnemy() {
-  if (state.gameOver) return;
+  if (!state.started || state.gameOver || state.paused) return;
   state.enemies.push({
     x: Math.random() * (CONFIG.width - CONFIG.enemy.w), y: -CONFIG.enemy.h,
     w: CONFIG.enemy.w, h: CONFIG.enemy.h, speed: CONFIG.enemy.speed
@@ -123,15 +170,31 @@ function draw() {
   ctx.font = "20px sans-serif";
   ctx.fillText("得分: " + state.score, 10, 30);
 
-  if (state.gameOver) {
+  ctx.textAlign = "center";
+  if (!state.started) {
+    ctx.font = "36px sans-serif";
+    ctx.fillText("飞机大战", CONFIG.width / 2, CONFIG.height / 2 - 40);
+    ctx.font = "18px sans-serif";
+    ctx.fillText("方向键/手指拖动移动  ·  P 暂停", CONFIG.width / 2, CONFIG.height / 2);
+    ctx.fillText("按空格 / 点击屏幕 开始", CONFIG.width / 2, CONFIG.height / 2 + 30);
+  } else if (state.paused) {
     ctx.font = "40px sans-serif";
-    ctx.fillText("游戏结束", CONFIG.width / 2 - 80, CONFIG.height / 2);
+    ctx.fillText("已暂停", CONFIG.width / 2, CONFIG.height / 2);
+    ctx.font = "18px sans-serif";
+    ctx.fillText("按 P 继续", CONFIG.width / 2, CONFIG.height / 2 + 30);
+  } else if (state.gameOver) {
+    ctx.font = "40px sans-serif";
+    ctx.fillText("游戏结束", CONFIG.width / 2, CONFIG.height / 2 - 20);
+    ctx.font = "18px sans-serif";
+    ctx.fillText("最终得分: " + state.score, CONFIG.width / 2, CONFIG.height / 2 + 15);
+    ctx.fillText("按空格 / 点击屏幕 重新开始", CONFIG.width / 2, CONFIG.height / 2 + 45);
   }
+  ctx.textAlign = "left";
 }
 
 // ===== 主循环 =====
 function loop() {
-  if (!state.gameOver) update();
+  if (state.started && !state.gameOver && !state.paused) update();
   draw();
   requestAnimationFrame(loop);
 }
