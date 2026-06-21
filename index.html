@@ -11,15 +11,24 @@
 </head>
 <body>
 <canvas id="game" width="480" height="640"></canvas>
-<script src="src/logic.js"></script>
 <script>
 "use strict";
 
-// 复用 src/logic.js 中经过单元测试的纯逻辑函数
-var isColliding = GameLogic.isColliding;
-var computeLevel = GameLogic.computeLevel;
-var enemySpeed = GameLogic.enemySpeed;
-var clamp = GameLogic.clamp;
+// 核心纯逻辑：直接内联，确保用 file:// 双击打开也能运行（不依赖外部脚本加载）。
+// 同样的函数在 src/logic.js 中维护一份供单元测试使用，两处保持一致。
+function isColliding(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+function computeLevel(score, levelUpEvery) {
+  return Math.floor(score / levelUpEvery) + 1;
+}
+function enemySpeed(base, level, perLevel) {
+  return base + (level - 1) * perLevel;
+}
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
 
 // ===== 配置：所有可调参数集中于此，方便统一修改 =====
 var CONFIG = {
