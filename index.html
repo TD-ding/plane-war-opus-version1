@@ -40,12 +40,22 @@ function update() {
   if (keys["ArrowUp"]) player.y -= player.speed;
   if (keys["ArrowDown"]) player.y += player.speed;
 
+  // 限制飞机在画布内，不让它飞出屏幕
+  if (player.x < 0) player.x = 0;
+  if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+  if (player.y < 0) player.y = 0;
+  if (player.y > canvas.height - player.h) player.y = canvas.height - player.h;
+
   for (var i = 0; i < bullets.length; i++) {
     bullets[i].y -= 8;
   }
   for (var i = 0; i < enemies.length; i++) {
     enemies[i].y += enemies[i].speed;
   }
+
+  // 清理飞出屏幕的子弹和敌机，避免数组无限增长导致卡顿
+  bullets = bullets.filter(function(b){ return b.y + b.h > 0; });
+  enemies = enemies.filter(function(e){ return e.y < canvas.height; });
 
   for (var i = 0; i < enemies.length; i++) {
     for (var j = 0; j < bullets.length; j++) {
