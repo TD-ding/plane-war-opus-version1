@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>飞机大战</title>
+<style>
+  body { margin: 0; background: #0b1026; }
+  canvas { display: block; margin: 0 auto; background: #0b1026; }
+</style>
+</head>
+<body>
+<canvas id="game" width="480" height="640"></canvas>
+<script>
+var canvas = document.getElementById("game");
+var ctx = canvas.getContext("2d");
+
+var player = { x: 220, y: 560, w: 40, h: 40, speed: 5 };
+var bullets = [];
+var enemies = [];
+var score = 0;
+var gameOver = false;
+var keys = {};
+
+document.addEventListener("keydown", function(e){ keys[e.key] = true; });
+document.addEventListener("keyup", function(e){ keys[e.key] = false; });
+
+function shoot() {
+  bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 10 });
+}
+setInterval(shoot, 300);
+
+function spawnEnemy() {
+  enemies.push({ x: Math.random()*440, y: -40, w: 40, h: 40, speed: 2 });
+}
+setInterval(spawnEnemy, 1000);
+
+function update() {
+  if (keys["ArrowLeft"]) player.x -= player.speed;
+  if (keys["ArrowRight"]) player.x += player.speed;
+  if (keys["ArrowUp"]) player.y -= player.speed;
+  if (keys["ArrowDown"]) player.y += player.speed;
+
+  // 限制飞机在画布内，不让它飞出屏幕
+  if (player.x < 0) player.x = 0;
+  if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+  if (player.y < 0) player.y = 0;
+  if (player.y > canvas.height - player.h) player.y = canvas.height - player.h;
+
+  for (var i = 0; i < bullets.length; i++) {
+    bullets[i].y -= 8;
+  }
+  for (var i = 0; i < enemies.length; i++) {
+    enemies[i].y += enemies[i].speed;
+  }
+
+  // 清理飞出屏幕的子弹和敌机，避免数组无限增长导致卡顿
+  bullets = bullets.filter(function(b){ return b.y + b.h > 0; });
+  enemies = enemies.filter(function(e){ return e.y < canvas.height; });
+
+  for (var i = 0; i < enemies.length; i++) {
+    for (var j = 0; j < bullets.length; j++) {
+      if (enemies[i] && bullets[j] &&
+          bullets[j].x < enemies[i].x + enemies[i].w &&
+          bullets[j].x + bullets[j].w > enemies[i].x &&
+          bullets[j].y < enemies[i].y + enemies[i].h &&
+          bullets[j].y + bullets[j].h > enemies[i].y) {
+        enemies.splice(i, 1);
+        bullets.splice(j, 1);
+        score += 10;
+        break;
+      }
+    }
+  }
+
+  for (var i = 0; i < enemies.length; i++) {
+    if (enemies[i] &&
+        player.x < enemies[i].x + enemies[i].w &&
+        player.x + player.w > enemies[i].x &&
+        player.y < enemies[i].y + enemies[i].h &&
+        player.y + player.h > enemies[i].y) {
+      gameOver = true;
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#4af";
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+  ctx.fillStyle = "#ff0";
+  for (var i = 0; i < bullets.length; i++) {
+    ctx.fillRect(bullets[i].x, bullets[i].y, bullets[i].w, bullets[i].h);
+  }
+  ctx.fillStyle = "#f44";
+  for (var i = 0; i < enemies.length; i++) {
+    ctx.fillRect(enemies[i].x, enemies[i].y, enemies[i].w, enemies[i].h);
+  }
+  ctx.fillStyle = "#fff";
+  ctx.font = "20px sans-serif";
+  ctx.fillText("得分: " + score, 10, 30);
+
+  if (gameOver) {
+    ctx.fillText("游戏结束", 190, 320);
+  }
+}
+
+function loop() {
+  if (!gameOver) {
+    update();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
