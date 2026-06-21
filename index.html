@@ -11,8 +11,15 @@
 </head>
 <body>
 <canvas id="game" width="480" height="640"></canvas>
+<script src="src/logic.js"></script>
 <script>
 "use strict";
+
+// 复用 src/logic.js 中经过单元测试的纯逻辑函数
+var isColliding = GameLogic.isColliding;
+var computeLevel = GameLogic.computeLevel;
+var enemySpeed = GameLogic.enemySpeed;
+var clamp = GameLogic.clamp;
 
 // ===== 配置：所有可调参数集中于此，方便统一修改 =====
 var CONFIG = {
@@ -109,12 +116,6 @@ function restart() {
   state.started = true;
 }
 
-// ===== 工具：矩形碰撞检测（AABB） =====
-function isColliding(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x &&
-         a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
 // ===== 生成器：定时创建子弹与敌机 =====
 function spawnBullet() {
   if (!state.started || state.gameOver || state.paused) return;
@@ -130,7 +131,7 @@ function spawnEnemy() {
     x: Math.random() * (CONFIG.width - CONFIG.enemy.w), y: -CONFIG.enemy.h,
     w: CONFIG.enemy.w, h: CONFIG.enemy.h,
     // 敌机速度随关卡递增，难度逐步提升
-    speed: CONFIG.enemy.speed + (state.level - 1) * CONFIG.enemySpeedPerLevel
+    speed: enemySpeed(CONFIG.enemy.speed, state.level, CONFIG.enemySpeedPerLevel)
   });
 }
 setInterval(spawnBullet, CONFIG.bullet.interval);
@@ -145,8 +146,8 @@ function update() {
   if (k["ArrowDown"])  p.y += CONFIG.player.speed;
 
   // 限制飞机在画布内
-  p.x = Math.max(0, Math.min(CONFIG.width - p.w, p.x));
-  p.y = Math.max(0, Math.min(CONFIG.height - p.h, p.y));
+  p.x = clamp(p.x, 0, CONFIG.width - p.w);
+  p.y = clamp(p.y, 0, CONFIG.height - p.h);
 
   // 移动子弹与敌机
   state.bullets.forEach(function (b) { b.y -= CONFIG.bullet.speed; });
@@ -164,7 +165,7 @@ function update() {
         state.bullets.splice(j, 1);
         state.score += CONFIG.scorePerKill;
         // 关卡随分数提升
-        state.level = Math.floor(state.score / CONFIG.levelUpEvery) + 1;
+        state.level = computeLevel(state.score, CONFIG.levelUpEvery);
         // 实时刷新最高分
         if (state.score > state.highScore) {
           state.highScore = state.score;
