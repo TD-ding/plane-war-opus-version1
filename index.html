@@ -2,112 +2,136 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>飞机大战</title>
 <style>
-  body { margin: 0; background: #0b1026; }
+  body { margin: 0; background: #0b1026; font-family: sans-serif; }
   canvas { display: block; margin: 0 auto; background: #0b1026; }
 </style>
 </head>
 <body>
 <canvas id="game" width="480" height="640"></canvas>
 <script>
+"use strict";
+
+// ===== 配置：所有可调参数集中于此，方便统一修改 =====
+var CONFIG = {
+  width: 480,
+  height: 640,
+  player:  { w: 40, h: 40, speed: 5, color: "#4af" },
+  bullet:  { w: 4, h: 10, speed: 8, color: "#ff0", interval: 300 },
+  enemy:   { w: 40, h: 40, speed: 2, color: "#f44", interval: 1000 },
+  scorePerKill: 10
+};
+
 var canvas = document.getElementById("game");
 var ctx = canvas.getContext("2d");
 
-var player = { x: 220, y: 560, w: 40, h: 40, speed: 5 };
-var bullets = [];
-var enemies = [];
-var score = 0;
-var gameOver = false;
-var keys = {};
+// ===== 游戏状态：集中管理可变状态，避免散落的全局变量 =====
+var state = {
+  player: { x: CONFIG.width / 2 - CONFIG.player.w / 2, y: CONFIG.height - 80,
+            w: CONFIG.player.w, h: CONFIG.player.h },
+  bullets: [],
+  enemies: [],
+  score: 0,
+  gameOver: false,
+  keys: {}
+};
 
-document.addEventListener("keydown", function(e){ keys[e.key] = true; });
-document.addEventListener("keyup", function(e){ keys[e.key] = false; });
+// ===== 输入处理 =====
+document.addEventListener("keydown", function (e) { state.keys[e.key] = true; });
+document.addEventListener("keyup",   function (e) { state.keys[e.key] = false; });
 
-function shoot() {
-  bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 10 });
+// ===== 工具：矩形碰撞检测（AABB） =====
+function isColliding(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
 }
-setInterval(shoot, 300);
 
+// ===== 生成器：定时创建子弹与敌机 =====
+function spawnBullet() {
+  if (state.gameOver) return;
+  var p = state.player;
+  state.bullets.push({
+    x: p.x + p.w / 2 - CONFIG.bullet.w / 2, y: p.y,
+    w: CONFIG.bullet.w, h: CONFIG.bullet.h
+  });
+}
 function spawnEnemy() {
-  enemies.push({ x: Math.random()*440, y: -40, w: 40, h: 40, speed: 2 });
+  if (state.gameOver) return;
+  state.enemies.push({
+    x: Math.random() * (CONFIG.width - CONFIG.enemy.w), y: -CONFIG.enemy.h,
+    w: CONFIG.enemy.w, h: CONFIG.enemy.h, speed: CONFIG.enemy.speed
+  });
 }
-setInterval(spawnEnemy, 1000);
+setInterval(spawnBullet, CONFIG.bullet.interval);
+setInterval(spawnEnemy, CONFIG.enemy.interval);
 
+// ===== 更新：移动、清理、碰撞 =====
 function update() {
-  if (keys["ArrowLeft"]) player.x -= player.speed;
-  if (keys["ArrowRight"]) player.x += player.speed;
-  if (keys["ArrowUp"]) player.y -= player.speed;
-  if (keys["ArrowDown"]) player.y += player.speed;
+  var p = state.player, k = state.keys;
+  if (k["ArrowLeft"])  p.x -= CONFIG.player.speed;
+  if (k["ArrowRight"]) p.x += CONFIG.player.speed;
+  if (k["ArrowUp"])    p.y -= CONFIG.player.speed;
+  if (k["ArrowDown"])  p.y += CONFIG.player.speed;
 
-  // 限制飞机在画布内，不让它飞出屏幕
-  if (player.x < 0) player.x = 0;
-  if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
-  if (player.y < 0) player.y = 0;
-  if (player.y > canvas.height - player.h) player.y = canvas.height - player.h;
+  // 限制飞机在画布内
+  p.x = Math.max(0, Math.min(CONFIG.width - p.w, p.x));
+  p.y = Math.max(0, Math.min(CONFIG.height - p.h, p.y));
 
-  for (var i = 0; i < bullets.length; i++) {
-    bullets[i].y -= 8;
-  }
-  for (var i = 0; i < enemies.length; i++) {
-    enemies[i].y += enemies[i].speed;
-  }
+  // 移动子弹与敌机
+  state.bullets.forEach(function (b) { b.y -= CONFIG.bullet.speed; });
+  state.enemies.forEach(function (e) { e.y += e.speed; });
 
-  // 清理飞出屏幕的子弹和敌机，避免数组无限增长导致卡顿
-  bullets = bullets.filter(function(b){ return b.y + b.h > 0; });
-  enemies = enemies.filter(function(e){ return e.y < canvas.height; });
+  // 清理越界对象，避免数组无限增长
+  state.bullets = state.bullets.filter(function (b) { return b.y + b.h > 0; });
+  state.enemies = state.enemies.filter(function (e) { return e.y < CONFIG.height; });
 
-  for (var i = 0; i < enemies.length; i++) {
-    for (var j = 0; j < bullets.length; j++) {
-      if (enemies[i] && bullets[j] &&
-          bullets[j].x < enemies[i].x + enemies[i].w &&
-          bullets[j].x + bullets[j].w > enemies[i].x &&
-          bullets[j].y < enemies[i].y + enemies[i].h &&
-          bullets[j].y + bullets[j].h > enemies[i].y) {
-        enemies.splice(i, 1);
-        bullets.splice(j, 1);
-        score += 10;
+  // 子弹击中敌机：命中则双方移除并计分
+  for (var i = state.enemies.length - 1; i >= 0; i--) {
+    for (var j = state.bullets.length - 1; j >= 0; j--) {
+      if (isColliding(state.enemies[i], state.bullets[j])) {
+        state.enemies.splice(i, 1);
+        state.bullets.splice(j, 1);
+        state.score += CONFIG.scorePerKill;
         break;
       }
     }
   }
 
-  for (var i = 0; i < enemies.length; i++) {
-    if (enemies[i] &&
-        player.x < enemies[i].x + enemies[i].w &&
-        player.x + player.w > enemies[i].x &&
-        player.y < enemies[i].y + enemies[i].h &&
-        player.y + player.h > enemies[i].y) {
-      gameOver = true;
+  // 敌机撞到飞机：游戏结束
+  for (var m = 0; m < state.enemies.length; m++) {
+    if (isColliding(state.player, state.enemies[m])) {
+      state.gameOver = true;
+      break;
     }
   }
 }
 
+// ===== 渲染 =====
+function drawRects(list, color) {
+  ctx.fillStyle = color;
+  list.forEach(function (o) { ctx.fillRect(o.x, o.y, o.w, o.h); });
+}
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#4af";
-  ctx.fillRect(player.x, player.y, player.w, player.h);
-  ctx.fillStyle = "#ff0";
-  for (var i = 0; i < bullets.length; i++) {
-    ctx.fillRect(bullets[i].x, bullets[i].y, bullets[i].w, bullets[i].h);
-  }
-  ctx.fillStyle = "#f44";
-  for (var i = 0; i < enemies.length; i++) {
-    ctx.fillRect(enemies[i].x, enemies[i].y, enemies[i].w, enemies[i].h);
-  }
+  ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+  drawRects([state.player], CONFIG.player.color);
+  drawRects(state.bullets, CONFIG.bullet.color);
+  drawRects(state.enemies, CONFIG.enemy.color);
+
   ctx.fillStyle = "#fff";
   ctx.font = "20px sans-serif";
-  ctx.fillText("得分: " + score, 10, 30);
+  ctx.fillText("得分: " + state.score, 10, 30);
 
-  if (gameOver) {
-    ctx.fillText("游戏结束", 190, 320);
+  if (state.gameOver) {
+    ctx.font = "40px sans-serif";
+    ctx.fillText("游戏结束", CONFIG.width / 2 - 80, CONFIG.height / 2);
   }
 }
 
+// ===== 主循环 =====
 function loop() {
-  if (!gameOver) {
-    update();
-  }
+  if (!state.gameOver) update();
   draw();
   requestAnimationFrame(loop);
 }
