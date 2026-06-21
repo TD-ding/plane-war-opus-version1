@@ -50,6 +50,7 @@ var state = {
   highScore: loadHighScore(),
   lives: CONFIG.startLives,
   level: 1,
+  invuln: 0,        // 受击后短暂无敌帧，防止一帧内被连扣多条命
   gameOver: false,
   paused: false,
   started: false,
@@ -102,6 +103,7 @@ function restart() {
   state.score = 0;
   state.lives = CONFIG.startLives;
   state.level = 1;
+  state.invuln = 0;
   state.gameOver = false;
   state.paused = false;
   state.started = true;
@@ -174,13 +176,18 @@ function update() {
   }
 
   // 敌机撞到飞机：扣一条命并移除该敌机，命数耗尽才结束
+  // 受击后进入短暂无敌帧，避免同一时刻被多架敌机连扣干净
+  if (state.invuln > 0) state.invuln--;
   for (var m = state.enemies.length - 1; m >= 0; m--) {
     if (isColliding(state.player, state.enemies[m])) {
       state.enemies.splice(m, 1);
-      state.lives--;
-      if (state.lives <= 0) {
-        state.lives = 0;
-        state.gameOver = true;
+      if (state.invuln === 0) {
+        state.lives--;
+        state.invuln = 90;   // 约 1.5 秒无敌
+        if (state.lives <= 0) {
+          state.lives = 0;
+          state.gameOver = true;
+        }
       }
     }
   }
@@ -193,7 +200,10 @@ function drawRects(list, color) {
 }
 function draw() {
   ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
-  drawRects([state.player], CONFIG.player.color);
+  // 无敌期间飞机闪烁，给玩家明确的受击反馈
+  if (state.invuln === 0 || Math.floor(state.invuln / 6) % 2 === 0) {
+    drawRects([state.player], CONFIG.player.color);
+  }
   drawRects(state.bullets, CONFIG.bullet.color);
   drawRects(state.enemies, CONFIG.enemy.color);
 
