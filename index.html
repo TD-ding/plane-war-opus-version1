@@ -21,8 +21,21 @@ var CONFIG = {
   player:  { w: 40, h: 40, speed: 5, color: "#4af" },
   bullet:  { w: 4, h: 10, speed: 8, color: "#ff0", interval: 300 },
   enemy:   { w: 40, h: 40, speed: 2, color: "#f44", interval: 1000 },
-  scorePerKill: 10
+  scorePerKill: 10,
+  startLives: 3,                 // 初始生命数
+  levelUpEvery: 100,             // 每得这么多分升一级
+  enemySpeedPerLevel: 0.4,       // 每级敌机额外速度
+  hsKey: "planeWarHighScore"     // 最高分本地存储键
 };
+
+// 读取/保存本地最高分，刷新或重开都不丢失
+function loadHighScore() {
+  var v = parseInt(localStorage.getItem(CONFIG.hsKey), 10);
+  return isNaN(v) ? 0 : v;
+}
+function saveHighScore(v) {
+  try { localStorage.setItem(CONFIG.hsKey, String(v)); } catch (e) {}
+}
 
 var canvas = document.getElementById("game");
 var ctx = canvas.getContext("2d");
@@ -34,6 +47,9 @@ var state = {
   bullets: [],
   enemies: [],
   score: 0,
+  highScore: loadHighScore(),
+  lives: CONFIG.startLives,
+  level: 1,
   gameOver: false,
   paused: false,
   started: false,
@@ -84,6 +100,8 @@ function restart() {
   state.bullets = [];
   state.enemies = [];
   state.score = 0;
+  state.lives = CONFIG.startLives;
+  state.level = 1;
   state.gameOver = false;
   state.paused = false;
   state.started = true;
@@ -108,7 +126,9 @@ function spawnEnemy() {
   if (!state.started || state.gameOver || state.paused) return;
   state.enemies.push({
     x: Math.random() * (CONFIG.width - CONFIG.enemy.w), y: -CONFIG.enemy.h,
-    w: CONFIG.enemy.w, h: CONFIG.enemy.h, speed: CONFIG.enemy.speed
+    w: CONFIG.enemy.w, h: CONFIG.enemy.h,
+    // 敌机速度随关卡递增，难度逐步提升
+    speed: CONFIG.enemy.speed + (state.level - 1) * CONFIG.enemySpeedPerLevel
   });
 }
 setInterval(spawnBullet, CONFIG.bullet.interval);
@@ -141,16 +161,27 @@ function update() {
         state.enemies.splice(i, 1);
         state.bullets.splice(j, 1);
         state.score += CONFIG.scorePerKill;
+        // 关卡随分数提升
+        state.level = Math.floor(state.score / CONFIG.levelUpEvery) + 1;
+        // 实时刷新最高分
+        if (state.score > state.highScore) {
+          state.highScore = state.score;
+          saveHighScore(state.highScore);
+        }
         break;
       }
     }
   }
 
-  // 敌机撞到飞机：游戏结束
-  for (var m = 0; m < state.enemies.length; m++) {
+  // 敌机撞到飞机：扣一条命并移除该敌机，命数耗尽才结束
+  for (var m = state.enemies.length - 1; m >= 0; m--) {
     if (isColliding(state.player, state.enemies[m])) {
-      state.gameOver = true;
-      break;
+      state.enemies.splice(m, 1);
+      state.lives--;
+      if (state.lives <= 0) {
+        state.lives = 0;
+        state.gameOver = true;
+      }
     }
   }
 }
@@ -169,6 +200,9 @@ function draw() {
   ctx.fillStyle = "#fff";
   ctx.font = "20px sans-serif";
   ctx.fillText("得分: " + state.score, 10, 30);
+  ctx.fillText("最高: " + state.highScore, 10, 55);
+  ctx.fillText("第 " + state.level + " 关", CONFIG.width - 90, 30);
+  ctx.fillText("生命: " + "♥".repeat(state.lives), CONFIG.width - 130, 55);
 
   ctx.textAlign = "center";
   if (!state.started) {
@@ -186,7 +220,7 @@ function draw() {
     ctx.font = "40px sans-serif";
     ctx.fillText("游戏结束", CONFIG.width / 2, CONFIG.height / 2 - 20);
     ctx.font = "18px sans-serif";
-    ctx.fillText("最终得分: " + state.score, CONFIG.width / 2, CONFIG.height / 2 + 15);
+    ctx.fillText("最终得分: " + state.score + "  最高: " + state.highScore, CONFIG.width / 2, CONFIG.height / 2 + 15);
     ctx.fillText("按空格 / 点击屏幕 重新开始", CONFIG.width / 2, CONFIG.height / 2 + 45);
   }
   ctx.textAlign = "left";
